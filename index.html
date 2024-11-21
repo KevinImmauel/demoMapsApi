@@ -32,6 +32,7 @@
     </form>
 
     <div id="map"></div>
+    <p id="info"></p> <!-- Element to display distance and duration -->
 
     <script>
         const apiKey = "5b3ce3597851110001cf6248e47ff58aefd348fa86e030aae8831f05"; // Replace with your OpenRouteService API key
@@ -59,7 +60,7 @@
             }
         }
 
-        // Get directions and show on map
+        // Get directions, show on map, and display distance/duration
         async function showDirections(origin, destination) {
             const url = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${apiKey}`;
             const payload = {
@@ -69,7 +70,8 @@
 
             try {
                 const response = await axios.post(url, payload);
-                const encodedPolyline = response.data.routes[0].geometry;
+                const route = response.data.routes[0];
+                const encodedPolyline = route.geometry;
 
                 // Decode the encoded polyline geometry
                 const coordinates = polyline.decode(encodedPolyline).map(([lat, lng]) => [lat, lng]);
@@ -80,6 +82,14 @@
 
                 // Adjust map view
                 map.fitBounds(routeLayer.getBounds());
+
+                // Get distance and duration
+                const distance = (route.summary.distance / 1000).toFixed(2); // Convert meters to kilometers
+                const duration = (route.summary.duration / 60).toFixed(2); // Convert seconds to minutes
+
+                // Display distance and duration
+                const infoElement = document.getElementById("info");
+                infoElement.textContent = `Distance: ${distance} km, Duration: ${duration} minutes`;
             } catch (error) {
                 console.error("Error fetching directions:", error);
                 throw new Error("Could not fetch directions. Please try again.");
@@ -107,7 +117,7 @@
                     // Get destination coordinates
                     const destinationCoords = await geocodeLocation(destinationInput);
 
-                    // Show directions on map
+                    // Show directions on map and display distance/duration
                     await showDirections(originCoords, destinationCoords);
                 }, (error) => {
                     throw new Error("Could not get your location. Please ensure location services are enabled.");
@@ -122,3 +132,4 @@
     </script>
 </body>
 </html>
+

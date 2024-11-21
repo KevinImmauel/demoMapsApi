@@ -89,7 +89,7 @@
 
                 // Display distance and duration
                 const infoElement = document.getElementById("info");
-                infoElement.textContent = `Distance: ${distance} km, Duration: ${duration} minutes`;
+                infoElement.textContent = `Distance: ${distance} km, Duration: ${duration} minutes, Fare Price: ${distnace*2} Rupees`;
             } catch (error) {
                 console.error("Error fetching directions:", error);
                 throw new Error("Could not fetch directions. Please try again.");

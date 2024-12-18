@@ -1,140 +1,195 @@
-<!---5b3ce3597851110001cf6248e47ff58aefd348fa86e030aae8831f05-->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Map with Directions</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link
-        rel="stylesheet"
-        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    />
-    <script
-        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    ></script>
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mapbox/polyline"></script>
-    <style>
-        #map {
-            height: 500px;
-            width: 100%;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Map with Directions</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  ></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mapbox/polyline"></script>
+  <style>
+    #map {
+      height: 500px;
+      width: 100%;
+    }
+  </style>
 </head>
-<body class="bg-slate-950 text-white">
-    <h1 class="text-4xl py-10">Map Directions</h1>
+<body class="bg-gray-900 text-white font-sans">
+  <div class="max-w-6xl mx-auto py-10 px-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
+    <div class="lg:col-span-3">
+      <h1 class="text-5xl font-bold text-center py-6">Map Directions</h1>
 
-    <form id="locationForm" class="py-6 text-2xl">
-        <label for="destination">Destination:</label>
-        <input type="text" id="destination" placeholder="Rajankunte etc" required>
-        <button class="bg-slate-600 px-12 py-4 rounded-full hover:border-solid hover:border-2 hover:border-white ease-in" type="submit">Show Directions</button>
-    </form>
+      <form id="locationForm" class="bg-gray-800 p-6 rounded-lg shadow-md mb-6">
+        <label for="destination" class="block text-lg font-medium mb-2">Enter Destination</label>
+        <div class="flex items-center">
+          <input 
+            type="text" 
+            id="destination" 
+            placeholder="E.g., Rajankunte"
+            class="flex-1 px-4 py-2 border border-gray-700 rounded-l-lg bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
+          />
+          <button 
+            type="submit" 
+            class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-r-lg font-semibold transition ease-in-out duration-300"
+          >
+            Show Directions
+          </button>
+        </div>
+      </form>
 
-    <div id="map"></div>
-    <p id="info"></p> <!-- Element to display distance and duration -->
+      <div id="map" class="rounded-lg shadow-md mb-6"></div>
 
-    <button class="bg-slate-600 px-12 py-4 m-6 rounded-full hover:border-solid hover:border-2 hover:border-white ease-in"><a href="index.html"><h1 class="text-4xl">Go Back</h1></a></button>
+      <div class="text-center">
+        <a href="edit.html" class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-lg font-semibold transition ease-in-out duration-300">
+          Go Back
+        </a>
+      </div>
+    </div>
 
+    <div class="bg-gray-800 p-6 rounded-lg shadow-md">
+      <h2 class="text-2xl font-bold mb-4">Route Information</h2>
+      <div id="info" class="text-lg space-y-4">
+        <p class="text-gray-400">Enter a destination to see details.</p>
+      </div>
+      <div id="confirmSection" class="mt-6 hidden">
+        <p id="remainingBalance" class="text-lg text-green-400 mb-4"></p>
+        <button id="confirmButton" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-semibold transition ease-in-out duration-300">
+          Confirm
+        </button>
+      </div>
+    </div>
+  </div>
 
-    <script>
-        const apiKey = "5b3ce3597851110001cf6248e47ff58aefd348fa86e030aae8831f05"; // Replace with your OpenRouteService API key
-        let map, routeLayer;
-
-        // Initialize the map
-        function initializeMap() {
-            map = L.map("map").setView([0, 0], 13); // Default view, updated later
-            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-                maxZoom: 19,
-                attribution: '© OpenStreetMap contributors',
-            }).addTo(map);
+  <script>
+    const apiKey = "5b3ce3597851110001cf6248e47ff58aefd348fa86e030aae8831f05"; // Replace with your OpenRouteService API key
+    let map, routeLayer;
+    let farePrice = 0;
+    let balance = 50000; // Initial balance, matches balance.html
+  
+    // Initialize the map
+    function initializeMap() {
+      map = L.map("map").setView([0, 0], 13); // Default view, updated later
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap contributors',
+      }).addTo(map);
+    }
+  
+    // Geocode a location to get coordinates
+    async function geocodeLocation(location) {
+      const url = `https://api.openrouteservice.org/geocode/search?api_key=${apiKey}&text=${encodeURIComponent(location)}`;
+      try {
+        const response = await axios.get(url);
+        const coordinates = response.data.features[0].geometry.coordinates; // [longitude, latitude]
+        return coordinates;
+      } catch (error) {
+        console.error(`Error geocoding location "${location}":`, error);
+        throw new Error("Could not find the destination. Please try again.");
+      }
+    }
+  
+    // Get directions, show on map, and display distance/duration
+    async function showDirections(origin, destination) {
+      const url = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${apiKey}`;
+      const payload = {
+        coordinates: [origin, destination],
+        instructions: false,
+      };
+  
+      try {
+        const response = await axios.post(url, payload);
+        const route = response.data.routes[0];
+        const encodedPolyline = route.geometry;
+  
+        // Decode the encoded polyline geometry
+        const coordinates = polyline.decode(encodedPolyline).map(([lat, lng]) => [lat, lng]);
+  
+        // Add route to map
+        if (routeLayer) map.removeLayer(routeLayer);
+        routeLayer = L.polyline(coordinates, { color: "blue", weight: 4 }).addTo(map);
+  
+        // Adjust map view
+        map.fitBounds(routeLayer.getBounds());
+  
+        // Get distance and duration
+        const distance = (route.summary.distance / 1000).toFixed(2); // Convert meters to kilometers
+        const duration = (route.summary.duration / 60).toFixed(2); // Convert seconds to minutes
+  
+        // Calculate fare price
+        farePrice = (distance * 2).toFixed(2);
+  
+        // Display distance, duration, and fare price
+        const infoElement = document.getElementById("info");
+        infoElement.innerHTML = `
+          <p><strong>Distance:</strong> ${distance} km</p>
+          <p><strong>Duration:</strong> ${duration} minutes</p>
+          <p><strong>Fare Price:</strong> ₹${farePrice}</p>
+        `;
+  
+        // Show remaining balance preview
+        const remainingBalance = (balance - farePrice).toFixed(2);
+        document.getElementById("remainingBalance").textContent = `Remaining Balance: ₹${remainingBalance}`;
+        document.getElementById("confirmSection").classList.remove("hidden");
+      } catch (error) {
+        console.error("Error fetching directions:", error);
+        throw new Error("Could not fetch directions. Please try again.");
+      }
+    }
+  
+    // Form submission handler
+    document.getElementById("locationForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+  
+      const destinationInput = document.getElementById("destination").value;
+  
+      try {
+        // Get user's location using Geolocation API
+        if (!navigator.geolocation) {
+          throw new Error("Geolocation is not supported by your browser.");
         }
-
-        // Geocode a location to get coordinates
-        async function geocodeLocation(location) {
-            const url = `https://api.openrouteservice.org/geocode/search?api_key=${apiKey}&text=${encodeURIComponent(location)}`;
-            try {
-                const response = await axios.get(url);
-                const coordinates = response.data.features[0].geometry.coordinates; // [longitude, latitude]
-                return coordinates;
-            } catch (error) {
-                console.error(`Error geocoding location "${location}":`, error);
-                throw new Error("Could not find the destination. Please try again.");
-            }
-        }
-
-        // Get directions, show on map, and display distance/duration
-        async function showDirections(origin, destination) {
-            const url = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${apiKey}`;
-            const payload = {
-                coordinates: [origin, destination],
-                instructions: false,
-            };
-
-            try {
-                const response = await axios.post(url, payload);
-                const route = response.data.routes[0];
-                const encodedPolyline = route.geometry;
-
-                // Decode the encoded polyline geometry
-                const coordinates = polyline.decode(encodedPolyline).map(([lat, lng]) => [lat, lng]);
-
-                // Add route to map
-                if (routeLayer) map.removeLayer(routeLayer);
-                routeLayer = L.polyline(coordinates, { color: "blue", weight: 4 }).addTo(map);
-
-                // Adjust map view
-                map.fitBounds(routeLayer.getBounds());
-
-                // Get distance and duration
-                const distance = (route.summary.distance / 1000).toFixed(2); // Convert meters to kilometers
-                const duration = (route.summary.duration / 60).toFixed(2); // Convert seconds to minutes
-
-                // Display distance and duration
-                const infoElement = document.getElementById("info");
-                infoElement.textContent = `Distance: ${distance} km, Duration: ${duration} minutes, Fare Price: ${distance*2} Rupees`;
-            } catch (error) {
-                console.error("Error fetching directions:", error);
-                throw new Error("Could not fetch directions. Please try again.");
-            }
-        }
-
-        // Form submission handler
-        document.getElementById("locationForm").addEventListener("submit", async (event) => {
-            event.preventDefault();
-
-            const destinationInput = document.getElementById("destination").value;
-
-            try {
-                // Get user's location using Geolocation API
-                if (!navigator.geolocation) {
-                    throw new Error("Geolocation is not supported by your browser.");
-                }
-
-                navigator.geolocation.getCurrentPosition(async (position) => {
-                    const originCoords = [position.coords.longitude, position.coords.latitude]; // [longitude, latitude]
-
-                    // Set map view to user's location
-                    map.setView([position.coords.latitude, position.coords.longitude], 13);
-
-                    // Get destination coordinates
-                    const destinationCoords = await geocodeLocation(destinationInput);
-
-                    // Show directions on map and display distance/duration
-                    await showDirections(originCoords, destinationCoords);
-                }, (error) => {
-                    throw new Error("Could not get your location. Please ensure location services are enabled.");
-                });
-            } catch (error) {
-                alert(error.message);
-            }
+  
+        navigator.geolocation.getCurrentPosition(async (position) => {
+          const originCoords = [position.coords.longitude, position.coords.latitude]; // [longitude, latitude]
+  
+          // Set map view to user's location
+          map.setView([position.coords.latitude, position.coords.longitude], 13);
+  
+          // Get destination coordinates
+          const destinationCoords = await geocodeLocation(destinationInput);
+  
+          // Show directions on map and display distance/duration
+          await showDirections(originCoords, destinationCoords);
+        }, (error) => {
+          throw new Error("Could not get your location. Please ensure location services are enabled.");
         });
-
-        // Initialize map on page load
-        initializeMap();
-    </script>
+      } catch (error) {
+        alert(error.message);
+      }
+    });
+  
+    // Confirm button handler
+    document.getElementById("confirmButton").addEventListener("click", () => {
+      balance -= farePrice; // Deduct fare price from balance
+      document.getElementById("remainingBalance").textContent = `Trip Confirmed! Remaining Balance: ₹${balance.toFixed(2)}`;
+      document.getElementById("confirmButton").textContent = "Confirmed";
+      document.getElementById("confirmButton").disabled = true;
+  
+      // Update balance.html (simple simulation for this task)
+      localStorage.setItem("balance", balance.toFixed(2));
+    });
+  
+    // Initialize map on page load
+    initializeMap();
+  </script>
+  
 </body>
 </html>
-
